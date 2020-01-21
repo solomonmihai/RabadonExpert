@@ -1,19 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Net.Http;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System.IO;
 using System.Threading;
-using System.Net;
 
 namespace RabadonHELPER
 {
@@ -66,8 +61,6 @@ namespace RabadonHELPER
             var json = Newtonsoft.Json.Linq.JObject.Parse(jsonString);
 
             Invoke(new Action(() => patchLabel.Text = "Patch: " + (string)json["version"]));
-
-            char prevCh = ' ';
 
             foreach (var champ in (JObject)json["data"])
             {
