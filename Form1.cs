@@ -14,7 +14,8 @@ namespace RabadonHELPER
 {
     public partial class Form1 : Form, IMessageFilter
     {
-        public static HttpClient Client { get; private set; }
+        private static HttpClient Client { get; set; }
+        private static ToolTip toolTip;
 
         public Form1()
         {
@@ -23,6 +24,10 @@ namespace RabadonHELPER
             Application.AddMessageFilter(this);
 
             controlsToMove.Add(titlePanel);
+            controlsToMove.Add(title);
+
+            toolTip = new ToolTip();
+            toolTip.InitialDelay = 50;
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -37,9 +42,17 @@ namespace RabadonHELPER
             RunLoadChampionsThread();
         }
 
-        const string CHAMPIONS_URL = "http://ddragon.leagueoflegends.com/cdn/10.1.1/data/en_US/champion.json";
-        const string SQUARE_IMAGES_BASE_URL = "http://ddragon.leagueoflegends.com/cdn/10.1.1/img/champion/";
-        const string CHAMPION_INFO_BASE_URL = "http://ddragon.leagueoflegends.com/cdn/10.1.1/data/en_US/champion/";
+        static string CHAMPIONS_URL => "http://ddragon.leagueoflegends.com/cdn/" + Patch + "/data/en_US/champion.json";
+        static string SQUARE_IMAGES_BASE_URL => "http://ddragon.leagueoflegends.com/cdn/" + Patch + "/img/champion/";
+        static string CHAMPION_INFO_BASE_URL => "http://ddragon.leagueoflegends.com/cdn/" + Patch + "/data/en_US/champion/";
+        const string CHAMPION_SKIN_BASE_URL = "http://ddragon.leagueoflegends.com/cdn/img/champion/loading/";
+        const string OPGG_BASE_URL = "http://na.op.gg/champion/";
+        const string PATCH_URL = "https://ddragon.leagueoflegends.com/api/versions.json";
+
+        static string Patch
+        {
+            get; set;
+        }
 
         Image defaultImage;
 
@@ -47,6 +60,9 @@ namespace RabadonHELPER
 
         private void RunLoadChampionsThread()
         {
+            Patch = (string)(JArray.Parse(Client.GetStringAsync(PATCH_URL).Result)[0]);
+            patchLabel.Text = "Patch: " + Patch;
+
             loadThread = new Thread(new ThreadStart(LoadChampions))
             {
                 IsBackground = true
@@ -60,23 +76,24 @@ namespace RabadonHELPER
             var jsonString = response.Content.ReadAsStringAsync().Result;
             var json = Newtonsoft.Json.Linq.JObject.Parse(jsonString);
 
-            Invoke(new Action(() => patchLabel.Text = "Patch: " + (string)json["version"]));
-
             foreach (var champ in (JObject)json["data"])
             {
                 var name = (string)champ.Value["name"];
                 MakeChampionButton(champ.Key, (string)champ.Value["name"]);
             }
 
-            _ = Parallel.ForEach(championsPanel.Controls.Cast<Button>(), new ParallelOptions()
+            _ = Parallel.ForEach(championsPanel.Controls.Cast<Control>(), new ParallelOptions()
             {
                 MaxDegreeOfParallelism = 200
             }, (button) =>
             {
-                var url = button.Tag.ToString().Split('-')[0];
-                var picture = new PictureBox();
-                picture.Load(url);
-                button.BackgroundImage = picture.Image;
+                if (button is Button)
+                {
+                    var url = button.Tag.ToString().Split('-')[0];
+                    var picture = new PictureBox();
+                    picture.Load(url);
+                    button.BackgroundImage = picture.Image;
+                }
             }); ;
             Invoke(new Action(() =>
             {
@@ -88,9 +105,8 @@ namespace RabadonHELPER
         {
             var url = SQUARE_IMAGES_BASE_URL + champId + ".png";
 
-            int width = 80;
+            int width = 69;
             var button = new Button();
-            button.TextImageRelation = TextImageRelation.ImageAboveText;
             button.Tag = url + "-" + champId;
             button.Name = champName;
             button.BackgroundImage = defaultImage;
@@ -99,6 +115,10 @@ namespace RabadonHELPER
             button.FlatAppearance.BorderColor = titlePanel.BackColor;
             button.FlatStyle = FlatStyle.Flat;
             button.BackgroundImageLayout = ImageLayout.Stretch;
+            button.MouseHover += delegate
+            {
+                toolTip.SetToolTip(button, champName);
+            };
             button.MouseEnter += delegate
             {
                 button.FlatAppearance.BorderColor = title.ForeColor;
@@ -112,10 +132,10 @@ namespace RabadonHELPER
                 SetChampionInfo(button);
                 championsPanel.Visible = false;
                 championsPanel.Enabled = false;
-                infoPanel.Visible = true;
-                infoPanel.Enabled = true;
+                champPanel.Visible = true;
+                champPanel.Enabled = true;
             };
-            
+
             Invoke(new Action(() =>
             {
                 championsPanel.Controls.Add(button);
@@ -133,6 +153,8 @@ namespace RabadonHELPER
             var champName = (string)champ["name"];
             var champTitle = (string)champ["title"];
             var champLore = (string)champ["lore"];
+
+            var skins = (JArray)champ["skins"];
 
             var stats = (JObject)champ["stats"];
 
@@ -152,6 +174,10 @@ namespace RabadonHELPER
 
                 champSquareImage.Image = button.BackgroundImage;
             }));
+            //LoadBuilds(championId);
+            LoadRunes(championId);
+            LoadCounters(championId);
+            LoadSkins(skins, championId);
         }
 
         private void ExitButton_Click(object sender, EventArgs e)
@@ -186,13 +212,23 @@ namespace RabadonHELPER
         {
             championsPanel.Visible = true;
             championsPanel.Enabled = true;
-            infoPanel.Visible = false;
-            infoPanel.Enabled = false;
+            champPanel.Visible = false;
+            champPanel.Enabled = false;
         }
 
         private void Minimize_Click(object sender, EventArgs e)
         {
             WindowState = FormWindowState.Minimized;
+        }
+
+        private void ChampPanel_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void InfoTabs_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
         }
     }
 }
